@@ -12,7 +12,7 @@ using NKeeper.Abstractions;
 namespace NKeeper.Plugins.Linux;
 
 /// <summary>
-/// The linux plugin (docs/architecture.md §7.25): Files, Journal and SELinux on the ssh plugin's <c>ssh</c> services.
+/// The linux plugin (docs/architecture.md §7.25): Files, Journal, SELinux and the internal scan on the ssh plugin's <c>ssh</c> services.
 /// Core opens the connections, checks the server's key and signs in; this plugin only runs the tools.
 /// </summary>
 public sealed class LinuxPlugin : IPlugin
@@ -28,6 +28,7 @@ public sealed class LinuxPlugin : IPlugin
         contributions.AddHostAction(new HostAction("linux.files", "Files", SessionType: "linux-files"));
         contributions.AddHostAction(new HostAction("linux.journal", "Journal", SessionType: "linux-journal"));
         contributions.AddHostAction(new HostAction("linux.selinux", "SELinux", SessionType: "linux-selinux"));
+        contributions.AddHostAction(new HostAction("linux.scan", "Linux (internal)") { Endpoint = "scan", ServiceTypes = [SshServiceType], Scan = true });
     }
 
     public void ConfigureServices(IServiceCollection services, PluginContext context)
@@ -44,6 +45,9 @@ public sealed class LinuxPlugin : IPlugin
     {
         var use = endpoints.MapHostGroup(HostPermission.Use);
         use.MapGet("/files/{token}", DownloadAsync);
+
+        // Only someone who can change the host applies what a scan finds (§7.26).
+        endpoints.MapHostGroup(HostPermission.Manage).MapPost("/scan", Scanner.ScanAsync);
     }
 
     internal static Guid? UserId(HttpContext? context) =>

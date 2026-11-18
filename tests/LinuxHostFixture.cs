@@ -17,7 +17,7 @@ public sealed class LinuxHostFixture : IAsyncLifetime
     public const string UserName = "tester";
     public const string Password = "Linux-Test-Passw0rd";
     public const string Address = "127.0.0.1";
-    private const int SshPort = 2222;
+    public const int ContainerSshPort = 2222;
 
     private const UnixFileModes Executable = UnixFileModes.UserRead | UnixFileModes.UserWrite | UnixFileModes.UserExecute
         | UnixFileModes.GroupRead | UnixFileModes.GroupExecute | UnixFileModes.OtherRead | UnixFileModes.OtherExecute;
@@ -27,11 +27,11 @@ public sealed class LinuxHostFixture : IAsyncLifetime
         .WithEnvironment("PASSWORD_ACCESS", "true")
         .WithEnvironment("USER_NAME", UserName)
         .WithEnvironment("USER_PASSWORD", Password)
-        .WithPortBinding(SshPort, assignRandomHostPort: true)
+        .WithPortBinding(ContainerSshPort, assignRandomHostPort: true)
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged(@"\[ls\.io-init\] done\."))
         .Build();
 
-    public int Port => _container.GetMappedPublicPort(SshPort);
+    public int Port => _container.GetMappedPublicPort(ContainerSshPort);
 
     public async ValueTask InitializeAsync()
     {
