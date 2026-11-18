@@ -9,8 +9,15 @@ It contributes no service type: its tools open on the ssh plugin's `ssh` service
 - **Files** (`linux.files`): browse, create folders, upload (in acknowledged chunks of up to 1 MB, at most 2 GB), rename, delete (files, and empty folders only), folder sizes as each is known, and downloads through one-time links that stream from the host, a folder as a zip. Works on any SSH server with SFTP, Windows' OpenSSH included.
 - **Journal** (`linux.journal`): `journalctl`, newest first, 200 entries a page, filtered by time, priority, unit, program and a regular expression, and followed live. As root when the login is root or may use `sudo` without a password; otherwise as much as the login may read, and it says so.
 - **SELinux** (`linux.selinux`): the mode, policy modules and denials from the audit log; a policy generated from chosen denials with `audit2allow`, to read and edit before installing; installing and removing local modules. Needs root, or `sudo` without a password. The distribution's modules are never overridden or removed.
-- Journal and SELinux check `uname -s` first and say so on a host that isn't Linux.
-- Changes are audited: `linux.files-mkdir`, `-delete`, `-rename`, `-upload`, `-download`, `linux.journal-read`, `linux.journal-follow`, `linux.selinux-install`, `linux.selinux-remove`.
+- **Scan** (`linux.scan`, a scan action, SDK 1.4): 1.x's internal scan. One SSH login runs one read-only script, which reads:
+  - the hostname, operating system, MAC address, CPU cores, memory, serial number and virtualization;
+  - the listening ports;
+  - the accounts that can log in;
+  - the neighbour table.
+
+  It answers the SDK's `ScanFindings`, and NKeeper's Scan dialog proposes changes from them. It needs Manage on the host.
+- Journal, SELinux and the scan check `uname -s` first and say so on a host that isn't Linux.
+- Changes are audited: `linux.files-mkdir`, `-delete`, `-rename`, `-upload`, `-download`, `linux.journal-read`, `linux.journal-follow`, `linux.selinux-install`, `linux.selinux-remove`, `linux.scan`.
 
 The plugin's ID is `linux`, and it is built in: it is signed with NKeeper's official key and installed with NKeeper.
 
@@ -66,7 +73,7 @@ dotnet test NKeeper.Plugins.Linux.slnx --configuration Release
 
 The tests need Docker and the internet. They start PostgreSQL and an OpenSSH server in containers, and NKeeper's test server (from `NKeeper.Testing`) with this plugin's built package and the released ssh plugin loaded (downloaded from its GitHub release and checked against the SHA-256 that NKeeper's `deploy/plugins.lock` pins). The OpenSSH server is dressed as a Linux host with fake `journalctl`, `getenforce`, `semodule`, `ausearch`, `audit2allow`, `checkmodule` and `semodule_package` (`tests/Linux/`, ported from 1.x), which answer in the real tools' formats and need root, as the real ones do; the test user gets it with `sudo`. A fake `uname` can say the host is Windows.
 
-They cover each tool end to end: Files (list, folders, chunked uploads, rename, delete, folder sizes, one-time download links for files and folders, and who can use them), Journal (filters, paging, errors, without `sudo`, following and stopping), SELinux (status, generating, installing and removing policies, and what it refuses), a host that isn't Linux, and a user without access. The parsers have their own tests, ported from 1.x.
+They cover each tool end to end: Files (list, folders, chunked uploads, rename, delete, folder sizes, one-time download links for files and folders, and who can use them), Journal (filters, paging, errors, without `sudo`, following and stopping), SELinux (status, generating, installing and removing policies, and what it refuses), the scan (trusting the key, then reading the host), a host that isn't Linux, and a user without access. The parsers have their own tests, ported from 1.x.
 
 ## Continuous integration
 

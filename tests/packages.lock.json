@@ -12,11 +12,17 @@
           "Microsoft.TestPlatform.TestHost": "17.14.1"
         }
       },
+      "NKeeper.Abstractions": {
+        "type": "Direct",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "0kxqIb802Wq7dtZYCWe+ZD7z9lcjVvcV4fZ3zqQ3zEkWoQTojDeZl5W76bA3TqUkdxMr6f/6qM3gX4Iac6SAJA=="
+      },
       "NKeeper.Testing": {
         "type": "Direct",
-        "requested": "[1.3.0, )",
-        "resolved": "1.3.0",
-        "contentHash": "9SSCn65oGOA5P1x3gaKYxjOqTia26M+BMX6+SW2J1+WXtWQtBIIJNi4ChGi6zJKvakPR+g+SgS5o9YdAn1qydA==",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "z6N5zF793R7kes/5ON/BeeE/i5oapgLftL6wg7qXDEzVEIBxtQfhub1wSvqbjQf1CyqDzjuj7b/3akgjD4R2wg==",
         "dependencies": {
           "Npgsql": "10.0.3",
           "SSH.NET": "2026.0.0",
@@ -300,14 +306,8 @@
       "nkeeper.plugins.linux": {
         "type": "Project",
         "dependencies": {
-          "NKeeper.Abstractions": "[1.3.0, )"
+          "NKeeper.Abstractions": "[1.4.0, )"
         }
-      },
-      "NKeeper.Abstractions": {
-        "type": "CentralTransitive",
-        "requested": "[1.3.0, )",
-        "resolved": "1.3.0",
-        "contentHash": "zONxr4bV0HAjeAcAoEGnBqaC5NDXzmAlzsagn7jqlGyi8QhMwzixsd4HIGOu6iThNHFufXcbH3nrfCVKHbuJOg=="
       }
     }
   }

@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="NKeeper.Testing" />
+    <!-- The plugin leaves the SDK to the server at run time; the parsers' own tests need it here. -->
+    <PackageReference Include="NKeeper.Abstractions" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />

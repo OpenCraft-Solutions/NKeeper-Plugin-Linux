@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using NKeeper.Testing;
+using Npgsql;
 
 namespace NKeeper.Plugins.Linux.Tests;
 
@@ -19,6 +20,7 @@ public sealed class LinuxPluginTests(PostgresFixture postgres, LinuxHostFixture 
 
     private TestServer _server = null!;
     private string _cookie = string.Empty;
+    private string _connectionString = string.Empty;
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
@@ -28,7 +30,8 @@ public sealed class LinuxPluginTests(PostgresFixture postgres, LinuxHostFixture 
     public async ValueTask InitializeAsync()
     {
         await linux.ResetAsync();
-        var options = new TestServerOptions { ConnectionString = await postgres.CreateDatabaseAsync() };
+        _connectionString = await postgres.CreateDatabaseAsync();
+        var options = new TestServerOptions { ConnectionString = _connectionString };
         foreach (var package in DevelopmentKeys.BuiltPackages())
         {
             options.PluginPackages.Add(package);
@@ -57,8 +60,8 @@ public sealed class LinuxPluginTests(PostgresFixture postgres, LinuxHostFixture 
             plugin.GetProperty("sessionTypes").EnumerateArray().Select(t => (t.GetProperty("id").GetString(), t.GetProperty("label").GetString())));
         Assert.All(plugin.GetProperty("sessionTypes").EnumerateArray(), t => Assert.Equal("ssh", Assert.Single(t.GetProperty("serviceTypes").EnumerateArray()).GetString()));
         Assert.Equal(
-            ["linux.files", "linux.journal", "linux.selinux"],
-            plugin.GetProperty("hostActions").EnumerateArray().Select(a => a.GetProperty("id").GetString()));
+            [("linux.files", false), ("linux.journal", false), ("linux.selinux", false), ("linux.scan", true)],
+            plugin.GetProperty("hostActions").EnumerateArray().Select(a => (a.GetProperty("id").GetString(), a.GetProperty("scan").GetBoolean())));
 
         // Its frontend is served from the verified package.
         using var module = await admin.Http.GetAsync(new Uri(plugin.GetProperty("frontendEntry").GetString()!, UriKind.Relative), Token);
@@ -362,6 +365,67 @@ public sealed class LinuxPluginTests(PostgresFixture postgres, LinuxHostFixture 
 
         await linux.RemoveSudoAsync();
         Assert.Contains("needs root", Error(await selinux.RequestAsync("status")), StringComparison.Ordinal);
+    }
+
+    // ---- Scan ----
+
+    [Fact]
+    public async Task A_scan_asks_to_trust_the_key_then_reads_the_host_and_is_audited()
+    {
+        // The image's own login is in the system range (911, below UID_MIN), which a scan leaves out, as 1.x did.
+        await linux.ExecAsync("id ops >/dev/null 2>&1 || adduser -D -u 1500 -g 'Operations Team' -s /bin/bash ops");
+        var host = await CreateHostAsync();
+        using var admin = await _server.SignedInClientAsync(Token);
+        var body = new { serviceId = ServiceId(host), credentialId = CredentialId(host) };
+
+        using (var unknown = await admin.SendAsync(HttpMethod.Post, $"/api/p/linux/hosts/{Id(host)}/scan", body, Token))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, unknown.StatusCode);
+            var problem = await unknown.Content.ReadFromJsonAsync<JsonElement>(Token);
+            Assert.Equal("host_key_unknown", problem.GetProperty("code").GetString());
+            var presented = problem.GetProperty("presented");
+            using var trusted = await admin.SendAsync(
+                HttpMethod.Post,
+                $"/api/hosts/{Id(host)}/services/{ServiceId(host)}/trusted-keys",
+                new { algorithm = presented.GetProperty("algorithm").GetString(), fingerprint = presented.GetProperty("fingerprint").GetString() },
+                Token);
+            Assert.True(trusted.IsSuccessStatusCode, await trusted.Content.ReadAsStringAsync(Token));
+        }
+
+        using var scanned = await admin.SendAsync(HttpMethod.Post, $"/api/p/linux/hosts/{Id(host)}/scan", body, Token);
+        Assert.True(scanned.IsSuccessStatusCode, await scanned.Content.ReadAsStringAsync(Token));
+        var findings = await scanned.Content.ReadFromJsonAsync<JsonElement>(Token);
+
+        Assert.False(string.IsNullOrEmpty(findings.GetProperty("hostname").GetString()));
+        Assert.True(findings.GetProperty("cpuCores").GetInt32() > 0);
+        Assert.Equal(
+            [("root", "root"), ("ops", "Operations Team")],
+            findings.GetProperty("users").EnumerateArray().Select(u => (u.GetProperty("username").GetString(), u.GetProperty("fullName").GetString())));
+        Assert.Contains(findings.GetProperty("ports").EnumerateArray(), p => p.GetProperty("port").GetInt32() == LinuxHostFixture.ContainerSshPort);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(Token);
+        await using var command = new NpgsqlCommand("SELECT detail FROM core.audit_events WHERE action = 'linux.scan'", connection);
+        Assert.Contains("ports", (string?)await command.ExecuteScalarAsync(Token), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_scan_of_a_host_that_isnt_linux_says_so()
+    {
+        await linux.ExecAsync("touch /var/lib/fake-linux/not-linux");
+        var host = await CreateHostAsync();
+        await using (await OpenAsync("linux-files", host))
+        {
+            // Opening a tool trusts the host's key.
+        }
+
+        using var admin = await _server.SignedInClientAsync(Token);
+        using var refused = await admin.SendAsync(HttpMethod.Post, $"/api/p/linux/hosts/{Id(host)}/scan", new { serviceId = ServiceId(host), credentialId = CredentialId(host) }, Token);
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>(Token);
+        Assert.Equal("not_linux", problem.GetProperty("code").GetString());
+        Assert.Contains("isn't Linux", problem.GetProperty("detail").GetString(), StringComparison.Ordinal);
     }
 
     // ---- Hosts that aren't Linux ----

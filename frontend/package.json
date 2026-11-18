@@ -3,7 +3,7 @@
   "description": "The linux plugin's frontend: the Files, Journal and SELinux tabs.",
   "private": true,
   "license": "MIT",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
@@ -11,7 +11,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@nkeeper/sdk": "npm:@opencraft-solutions/nkeeper-sdk@^1.3.0",
+    "@nkeeper/sdk": "npm:@opencraft-solutions/nkeeper-sdk@^1.4.0",
     "react": "^19.2.8"
   },
   "engines": {
